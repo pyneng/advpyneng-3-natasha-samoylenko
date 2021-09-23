@@ -1,0 +1,22 @@
+from setuptools import setup
+
+setup(
+    name="apyneng",
+    version="0.3",
+    py_modules=["apyneng"],
+    install_requires=[
+        "Click",
+        "pyyaml",
+        "pytest",
+        "pytest-clarity",
+        "pytest-json-report",
+        "requests",
+        "PyGithub",
+        "six",
+        "textfsm",
+    ],
+    entry_points="""
+        [console_scripts]
+        apyneng=apyneng:cli
+    """,
+)
