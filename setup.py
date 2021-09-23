@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="apyneng",
-    version="0.3",
+    version="0.7",
     py_modules=["apyneng"],
     install_requires=[
         "Click",

@@ -91,21 +91,17 @@ class CustomTasksType(click.ParamType):
                 )
             )
 
-        if isinstance(value, str):
-            tasks_list = re.split(r"[ ,]+", value)
-        else:
-            tasks_list = re.split(r"[ ,]+", " ".join(value["dummy"]))
-
-        if any(task_dir in current_chapter for task_dir in TASK_DIRS_WITHOUT_TESTS):
-            return {"dummy": tasks_list}
-
+        tasks_list = re.split(r"[ ,]+", value)
         current_chapter = current_chapter_id()
         test_files = []
+        task_files = []
         for task in tasks_list:
             match = re.fullmatch(regex, task)
             if match:
                 if task == "all":
-                    return value
+                    test_files = sorted(glob(f"test_task_{current_chapter}_*.py"))
+                    task_files = glob(f"task_{current_chapter}_*.py")
+                    break
                 else:
                     if match.group("letters_range"):
                         task = f"{task[0]}[{task[1:]}]"  # convert 1a-c to 1[a-c]
@@ -113,6 +109,7 @@ class CustomTasksType(click.ParamType):
                         task = f"[{task}]"  # convert 1-3 to [1-3]
 
                     test_files += glob(f"test_task_{current_chapter}_{task}.py")
+                    task_files += glob(f"task_{current_chapter}_{task}.py")
             else:
                 self.fail(
                     red(
@@ -120,7 +117,11 @@ class CustomTasksType(click.ParamType):
                         "Допустимые форматы: 1, 1a, 1b-d, 1*, 1-3"
                     )
                 )
-        return test_files
+        tasks_with_tests = set(
+            [test.replace("test_", "") for test in test_files]
+        )
+        tasks_without_tests = set(task_files) - tasks_with_tests
+        return sorted(test_files), sorted(tasks_without_tests)
 
 
 def call_command(command, verbose=True, return_stdout=False, return_stderr=False):
@@ -184,8 +185,7 @@ def post_comment_to_last_commit(msg, repo, delta_days=14):
             return last
 
 
-# def get_repo(search_pattern=r"advpyneng-\d+-\w+-\w+"):
-def get_repo(search_pattern=r"advpyneng-\w+-\w+-\w+"):  # временная правка для теста
+def get_repo(search_pattern=r"advpyneng-\d+-\w+-\w+"):
     git_remote = call_command("git remote -v", return_stdout=True)
     repo_match = re.search(search_pattern, git_remote)
     if repo_match:
@@ -217,28 +217,6 @@ def send_tasks_to_check(passed_tasks):
 
     for task in ok_tasks:
         call_command(f"git add {task}")
-    call_command(f'git commit -m "{message}"')
-    call_command("git push origin main")
-
-    repo = get_repo()
-    post_comment_to_last_commit(message, repo)
-
-
-def dummy_send_tasks_to_check(tasks):
-    """
-    Функция делает
-    git add .
-    git commit
-    git push
-    для добавления изменений на Github.
-    В коммит добавляются все файлы в текущем каталоге.
-
-    После этого к этому коммиту добавляется сообщение о том,
-    что задания сдаются на проверку с помощью функции post_comment_to_last_commit.
-    """
-    message = f"Сделаны задания {' '.join(tasks)}"
-
-    call_command(f"git add .")
     call_command(f'git commit -m "{message}"')
     call_command("git push origin main")
 
@@ -365,36 +343,23 @@ def cli(tasks, disable_verbose, check, debug, test_token):
     if check:
         pytest_args = [*pytest_args_common, "--tb=no"]
 
-    # запуск pytest
-    if tasks == "all":
-        pytest.main(pytest_args, plugins=[json_plugin])
-    elif type(tasks) == dict:
-        print(
-            green(
-                f"Для заданий разделов {','.join(TASK_DIRS_WITHOUT_TESTS)} нет тестов"
-            )
-        )
-    else:
-        pytest.main(tasks + pytest_args, plugins=[json_plugin])
+    # после обработки CustomTasksType, получаем два списка файлов
+    test_files, tasks_without_tests = tasks
 
-    # для заданий TASK_DIRS_WITHOUT_TESTS разделов делается глупое добавление всех файлов
-    if type(tasks) == dict:
+    # запуск pytest
+    pytest.main(test_files + pytest_args, plugins=[json_plugin])
+
+    # получить результаты pytest в формате JSON
+    # passed_tasks это задания у которых есть тесты и тесты прошли
+    passed_tasks = parse_json_report(json_plugin.report)
+
+    if passed_tasks or tasks_without_tests:
+        # сдать задания на проверку через github API
         if check:
             token = os.environ.get("GITHUB_TOKEN")
             if not token:
                 raise AdvPynengError(token_error)
-            dummy_send_tasks_to_check(tasks["dummy"])
-    else:
-        # получить результаты pytest в формате JSON
-        passed_tasks = parse_json_report(json_plugin.report)
-
-        if passed_tasks:
-            # сдать задания на проверку через github API
-            if check:
-                token = os.environ.get("GITHUB_TOKEN")
-                if not token:
-                    raise AdvPynengError(token_error)
-                send_tasks_to_check(passed_tasks)
+            send_tasks_to_check(passed_tasks + tasks_without_tests)
 
 
 if __name__ == "__main__":
