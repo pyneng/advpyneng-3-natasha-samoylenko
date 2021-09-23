@@ -13,12 +13,10 @@ import shutil
 from datetime import datetime, timedelta
 from glob import glob
 
-
 import click
 import yaml
 import pytest
 from pytest_jsonreport.plugin import JSONReport
-import requests
 import github
 
 
@@ -70,8 +68,14 @@ class CustomTasksType(click.ParamType):
     Кроме того проверяет есть ли такой файл в текущем каталоге
     и оставляет только те, что есть.
     """
+    name = "CustomTasksType"
 
     def convert(self, value, param, ctx):
+        # for some reason click can call this method with parsed args
+        # this allowes to return parsed value as is
+        if isinstance(value, tuple):
+            return value
+
         regex = (
             r"(?P<all>all)|"
             r"(?P<number_star>\d\*)|"

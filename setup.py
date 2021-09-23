@@ -10,10 +10,8 @@ setup(
         "pytest",
         "pytest-clarity",
         "pytest-json-report",
-        "requests",
         "PyGithub",
         "six",
-        "textfsm",
     ],
     entry_points="""
         [console_scripts]
