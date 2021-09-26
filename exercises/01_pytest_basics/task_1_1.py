@@ -35,6 +35,9 @@ def get_int_vlan_map(config_as_str):
     return access_port_dict, trunk_port_dict
 
 
+def test_1():
+    pass
+
 if __name__ == "__main__":
     with open("config_sw1.txt") as f:
         pprint(get_int_vlan_map(f.read()))
