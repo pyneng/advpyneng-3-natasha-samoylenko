@@ -27,7 +27,7 @@ In [4]: print(send_show_command(device_params, 'sh clock'))
 
 Ограничение: Функцию send_show_command менять нельзя, можно только применить декоратор.
 """
-
+from datetime import datetime
 from netmiko import ConnectHandler
 
 device_params = {
@@ -38,6 +38,14 @@ device_params = {
     "secret": "cisco",
 }
 
+
+def timecode(function):
+    def wrapper(*args, **kwargs):
+        start_time = datetime.now()
+        result = function(*args, **kwargs)
+        print('>>> Функция выполнялась:', datetime.now() - start_time)
+        return result
+    return wrapper
 
 def send_show_command(params, command):
     with ConnectHandler(**params) as ssh:
